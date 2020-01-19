@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
 set -ex
-
+# change below with the version of PMIx you would like to install: 
+PMIX_VERSION=3.1.4
+# change below with the version of Slurm you would like to install: 
 SLURM_VERSION=19.05.0
+# we want to install Slurm/PMIx on 18.04.3 LTS:
 UBUNTU_CODENAME='bionic'
-
-#UBUNTU_CODENAMES='xenial bionic'
-CENTOS_RELEASES='7'
-
-NAME=slurm-build
+# add name to the container:
+CONTAINER_NAME=slurm-pmix-build
+# the directory where to install the deb files after the build:
 DIST_DIR=./dist
-
-docker build --pull -t "$NAME" \
-             --file=./Dockerfile.ubuntu \
-             --build-arg SLURM_VERSION="$SLURM_VERSION" \
-             --build-arg UBUNTU_CODENAME="$UBUNTU_CODENAME" \
+# build the container:
+docker build --pull -t "${CONTAINER_NAME}"                    \
+             --file=./Dockerfile.ubuntu                       \
+             --build-arg PMIX_VERSION="${PMIX_VERSION}"       \
+             --build-arg SLURM_VERSION="${SLURM_VERSION}"     \
+             --build-arg UBUNTU_CODENAME="${UBUNTU_CODENAME}" \
             .
-docker ps -q -a -f "name=$NAME" | xargs -r docker rm 
-docker create --name="$NAME" "$NAME"
-rm -rf "$DIST_DIR"
-docker cp "${NAME}:/dist" "$DIST_DIR"
-docker rm "$NAME"
+# if we have a previous instance we kill it:
+docker ps -q -a -f "name=${CONTAINER_NAME}" | xargs -r docker rm 
+# create a new instance:
+docker create --name="${CONTAINER_NAME}" "${CONTAINER_NAME}"
+# remove the distination directory if not existing:
+rm -rf "${DIST_DIR}"
+# copy the internal deb files to the distination directory:
+docker cp "${CONTAINER_NAME}:/dist" "${DIST_DIR}"
+docker rm "${CONTAINER_NAME}"

@@ -1,62 +1,80 @@
 ARG UBUNTU_CODENAME
-# load from ubuntu image
+# load from ubuntu image:
 FROM ubuntu:$UBUNTU_CODENAME
-# install deps
-RUN apt-get update &&  apt-get upgrade -y 
+# install dependencies:
+RUN apt-get update -y &&  apt-get upgrade -y 
 
 RUN apt-get install -y --no-install-recommends \
-        build-essential                        \
-        libmunge-dev                           \
-        libpam0g-dev                           \
-        python-minimal                         \
-	python-apt                             \
-        python-setuptools                      \
-        python3-mysqldb                        \
-        ruby-dev                               \
-        wget              
+  build-essential                              \
+  libmunge-dev                                 \
+  libpam0g-dev                                 \
+  python-minimal                               \
+	python-apt                                   \
+  python-setuptools                            \
+  python3-mysqldb                              \
+  ruby-dev                                     \
+  wget                      
 
-RUN apt-get install -y --no-install-recommends mariadb-server
-        
 RUN apt-get install -y --no-install-recommends \
-	hwloc libnuma1                         \
-	libevent-dev                           \
-	libhwloc-dev                           \
-	zlibc zlibg1-dev zlibg1                \
-	#libpmix-dev libpmix2 libpmi2-0         \
+	hwloc libnuma1                               \
+	libevent-dev                                 \
+	libhwloc-dev                                 \
+	zlibc zlib1g-dev zlib1g                      \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN gem install --no-document fpm
-# create the dist directory
+# create the dist directory:
 RUN mkdir -p /dist
-# create the directory of the temporary slurm build
-RUN mkdir -p /workdir/build
-# get slurm source
+# create the directory of the temporary slurm and pmix build:
+RUN mkdir -p /workdir/pmix/build
+RUN mkdir -p /workdir/slurm/build
 ARG UBUNTU_CODENAME
-ARG SLURM_VERSION
+# get pmix sources:
+ARG PMIX_VERSION
+WORKDIR /workdir/pmix
+RUN wget -q -O pmix.tar.gz "https://github.com/openpmix/openpmix/releases/download/v${PMIX_VERSION}/pmix-${PMIX_VERSION}.tar.gz"
+# untar and build pmix:
+WORKDIR /workdir/pmix/sources
+RUN tar xzvf ../pmix.tar.gz --strip-components=1
+RUN ./configure --prefix=/workdir/pmix/build                  \ 
+                --with-hwloc=/usr                             \
+                --with-libevent=/usr
+RUN make -j         > pmix_build.log 
+RUN make install -j > pmix_install.log
+RUN cp /workdir/pmix/sources/config.log /dist/pmix_config.log
+RUN cp /workdir/pmix/sources/pmix_build.log   /dist/
+RUN cp /workdir/pmix/sources/pmix_install.log /dist/
+# package PMIx:
 WORKDIR /workdir
-RUN wget -q -O slurm.tar.bz2 "https://download.schedmd.com/slurm/slurm-${SLURM_VERSION}.tar.bz2"
-# build slurm
-WORKDIR /workdir/src
-RUN tar xjf ../slurm.tar.bz2 --strip-components=1
-# LIBS="-lz -ldl -levent -levent_core -levent_pthreads"
-RUN ./configure --prefix=/workdir/build                       \ 
-               --sysconfdir=/etc/slurm                        \
-               --enable-pam                                   \
-               --with-pam_dir=/lib/x86_64-linux-gnu/security/ \
-               --with-pmix=/usr/lib/$(dpkg-architecture | grep DEB_HOST_MULTIARCH | cut -d'=' -f 2)/pmix \ 
-               --without-shared-libslurm
-#RUN ./configure --help >> config.log
-RUN make "-j$(nproc)" > build.log 
-RUN make contrib "-j$(nproc)" > contrib.log
-RUN make install "-j$(nproc)" > install.log
-# copy logs to the dist directory 
-RUN cp /workdir/src/config.log /dist/
-RUN cp /workdir/src/build.log /dist/
-RUN cp /workdir/src/contrib.log /dist/
-RUN cp /workdir/src/install.log /dist/
-# make package
-WORKDIR /workdir
-RUN fpm -s dir -t deb -v "$SLURM_VERSION-$UBUNTU_CODENAME" -n slurm --prefix=/usr -C /workdir/build .
+RUN fpm -s dir -t deb -v "${PMIX_VERSION}-${UBUNTU_CODENAME}" -n pmix --prefix=/usr -C /workdir/pmix/build .
+# install PMIx to use it later for slurm:
+RUN dpkg -i  "pmix_${PMIX_VERSION}-${UBUNTU_CODENAME}_amd64.deb"
 
-# copy deb to /dist/
+# get slurm sources:
+ARG SLURM_VERSION
+WORKDIR /workdir/slurm
+RUN wget -q -O slurm.tar.bz2 "https://download.schedmd.com/slurm/slurm-${SLURM_VERSION}.tar.bz2"
+# untar and build slurm:
+WORKDIR /workdir/slurm/sources
+RUN tar xjf ../slurm.tar.bz2 --strip-components=1
+RUN ./configure --prefix=/workdir/build                        \ 
+                --sysconfdir=/etc/slurm                        \
+                --enable-pam                                   \
+                --with-pam_dir=/lib/x86_64-linux-gnu/security/ \
+                --with-hwloc=/usr                              \ 
+                --with-pmix=/usr                               \ 
+                --without-shared-libslurm
+RUN ./configure --help >> config.log
+RUN make -j         > slurm_build.log 
+RUN make contrib -j > slurm_contrib.log
+RUN make install -j > slurm_install.log
+# copy logs to the dist directory: 
+RUN cp /workdir/slurm/sources/config.log        /dist/slurm_config.log
+RUN cp /workdir/slurm/sources/slurm_build.log   /dist/
+RUN cp /workdir/slurm/sources/slurm_contrib.log /dist/
+RUN cp /workdir/slurm/sources/slurm_install.log /dist/
+# package Slurm:
+WORKDIR /workdir
+RUN fpm -s dir -t deb -v "${SLURM_VERSION}-${UBUNTU_CODENAME}" -n slurm --prefix=/usr -C /workdir/build .
+# copy the deb packages to /dist/:
 RUN cp *.deb /dist/
