@@ -2,18 +2,29 @@ ARG UBUNTU_CODENAME
 # load from ubuntu image
 FROM ubuntu:$UBUNTU_CODENAME
 # install deps
-RUN apt-get update \
-    &&  apt-get install -y --no-install-recommends \
-        build-essential \
-        libmunge-dev \
-        libmariadb-client-lgpl-dev \
-        libmysqlclient-dev \
-        libpam0g-dev \
-        python-minimal \
-        ruby-dev \
-        wget \
-        libevent-dev hwloc libpmix-dev libpmix2 \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update &&  apt-get upgrade -y 
+
+RUN apt-get install -y --no-install-recommends \
+        build-essential                        \
+        libmunge-dev                           \
+        libpam0g-dev                           \
+        python-minimal                         \
+	python-apt                             \
+        python-setuptools                      \
+        python3-mysqldb                        \
+        ruby-dev                               \
+        wget              
+
+RUN apt-get install -y --no-install-recommends mariadb-server
+        
+RUN apt-get install -y --no-install-recommends \
+	hwloc libnuma1                         \
+	libevent-dev                           \
+	libhwloc-dev                           \
+	zlibc zlibg1-dev zlibg1                \
+	#libpmix-dev libpmix2 libpmi2-0         \
+	&& rm -rf /var/lib/apt/lists/*
+
 RUN gem install --no-document fpm
 # create the dist directory
 RUN mkdir -p /dist
@@ -27,13 +38,14 @@ RUN wget -q -O slurm.tar.bz2 "https://download.schedmd.com/slurm/slurm-${SLURM_V
 # build slurm
 WORKDIR /workdir/src
 RUN tar xjf ../slurm.tar.bz2 --strip-components=1
-RUN ./configure --help
-RUN ./configure --prefix=/workdir/build                         \ 
+# LIBS="-lz -ldl -levent -levent_core -levent_pthreads"
+RUN ./configure --prefix=/workdir/build                       \ 
                --sysconfdir=/etc/slurm                        \
                --enable-pam                                   \
                --with-pam_dir=/lib/x86_64-linux-gnu/security/ \
-               --with-pmix=/usr/lib/$(dpkg-architecture | grep DEB_HOST_MULTIARCH | cut -d'=' -f 2)/pmix \
+               --with-pmix=/usr/lib/$(dpkg-architecture | grep DEB_HOST_MULTIARCH | cut -d'=' -f 2)/pmix \ 
                --without-shared-libslurm
+#RUN ./configure --help >> config.log
 RUN make "-j$(nproc)" > build.log 
 RUN make contrib "-j$(nproc)" > contrib.log
 RUN make install "-j$(nproc)" > install.log

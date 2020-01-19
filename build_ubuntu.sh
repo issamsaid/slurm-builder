@@ -15,7 +15,7 @@ docker build --pull -t "$NAME" \
              --build-arg SLURM_VERSION="$SLURM_VERSION" \
              --build-arg UBUNTU_CODENAME="$UBUNTU_CODENAME" \
             .
-docker ps -q -a -f "name=$NAME" | xargs docker rm -r
+docker ps -q -a -f "name=$NAME" | xargs -r docker rm 
 docker create --name="$NAME" "$NAME"
 rm -rf "$DIST_DIR"
 docker cp "${NAME}:/dist" "$DIST_DIR"
