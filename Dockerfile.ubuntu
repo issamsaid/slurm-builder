@@ -1,27 +1,27 @@
 ARG UBUNTU_CODENAME
 # load from ubuntu image:
 FROM ubuntu:$UBUNTU_CODENAME
-# install dependencies:
-RUN apt-get update -y &&  apt-get upgrade -y 
-
+# first upgrade and start from a clean image:
+RUN apt-get update -y &&  apt-get upgrade -y && apt-get dist-upgrade -y 
+# install the basics:
 RUN apt-get install -y --no-install-recommends \
   build-essential                              \
-  libmunge-dev                                 \
   libpam0g-dev                                 \
   python-minimal                               \
 	python-apt                                   \
   python-setuptools                            \
   python3-mysqldb                              \
   ruby-dev                                     \
-  wget                      
-
+  wget vim libssl-dev libncurses5-dev liblz4-1                     
+# install the DB development libraries so that we can compile storage_mysql:
+RUN apt-get install -y libmunge-dev libmariadb-dev 
+# install the dependencies for PMIx:
 RUN apt-get install -y --no-install-recommends \
-	hwloc libnuma1                               \
+	hwloc libnuma1 libhwloc-dev                  \
 	libevent-dev                                 \
-	libhwloc-dev                                 \
 	zlibc zlib1g-dev zlib1g                      \
 	&& rm -rf /var/lib/apt/lists/*
-
+# install fpm for packaging:
 RUN gem install --no-document fpm
 # create the dist directory:
 RUN mkdir -p /dist
@@ -29,7 +29,7 @@ RUN mkdir -p /dist
 RUN mkdir -p /workdir/pmix/build
 RUN mkdir -p /workdir/slurm/build
 ARG UBUNTU_CODENAME
-# get pmix sources:
+# get PMIx sources:
 ARG PMIX_VERSION
 WORKDIR /workdir/pmix
 RUN wget -q -O pmix.tar.gz "https://github.com/openpmix/openpmix/releases/download/v${PMIX_VERSION}/pmix-${PMIX_VERSION}.tar.gz"
@@ -63,7 +63,8 @@ RUN ./configure --prefix=/workdir/build                        \
                 --with-pam_dir=/lib/x86_64-linux-gnu/security/ \
                 --with-hwloc=/usr                              \ 
                 --with-pmix=/usr                               \ 
-                --without-shared-libslurm
+                --with-munge --without-rpath                   \
+		--enable-multiple-slurmd  --without-shared-libslurm
 RUN ./configure --help >> config.log
 RUN make -j         > slurm_build.log 
 RUN make contrib -j > slurm_contrib.log
