@@ -18,7 +18,7 @@ docker build --pull -t "${CONTAINER_NAME}"                    \
              --build-arg UBUNTU_CODENAME="${UBUNTU_CODENAME}" \
             .
 # if we have a previous instance we kill it:
-docker ps -q -a -f "name=${CONTAINER_NAME}" | xargs -r docker rm 
+docker ps -q -a -f "name=${CONTAINER_NAME}" | xargs docker rm -f 
 # create a new instance:
 docker create --name="${CONTAINER_NAME}" "${CONTAINER_NAME}"
 # remove the distination directory if not existing:
