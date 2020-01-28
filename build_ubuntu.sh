@@ -2,6 +2,7 @@
 set -ex
 # change below with the version of PMIx you would like to install: 
 PMIX_VERSION=3.1.4
+#PMIX_VERSION=2.2.3
 # change below with the version of Slurm you would like to install: 
 SLURM_VERSION=19.05.0
 # we want to install Slurm/PMIx on 18.04.3 LTS:
@@ -18,7 +19,7 @@ docker build --pull -t "${CONTAINER_NAME}"                    \
              --build-arg UBUNTU_CODENAME="${UBUNTU_CODENAME}" \
             .
 # if we have a previous instance we kill it:
-docker ps -q -a -f "name=${CONTAINER_NAME}" | xargs docker rm -f 
+docker ps -q -a -f "name=${CONTAINER_NAME}" | xargs -r docker rm 
 # create a new instance:
 docker create --name="${CONTAINER_NAME}" "${CONTAINER_NAME}"
 # remove the distination directory if not existing:

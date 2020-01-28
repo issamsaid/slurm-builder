@@ -1,6 +1,7 @@
 ARG UBUNTU_CODENAME
 # load from ubuntu image:
-FROM ubuntu:$UBUNTU_CODENAME
+#FROM ubuntu:$UBUNTU_CODENAME
+FROM nvidia/cuda:10.2-devel-ubuntu18.04
 # first upgrade and start from a clean image:
 RUN apt-get update -y &&  apt-get upgrade -y && apt-get dist-upgrade -y 
 # install the basics:
@@ -36,17 +37,17 @@ RUN wget -q -O pmix.tar.gz "https://github.com/openpmix/openpmix/releases/downlo
 # untar and build pmix:
 WORKDIR /workdir/pmix/sources
 RUN tar xzvf ../pmix.tar.gz --strip-components=1
-RUN ./configure --prefix=/workdir/pmix/build                  \ 
+RUN ./configure --prefix=/usr                                 \ 
                 --with-hwloc=/usr                             \
                 --with-libevent=/usr
 RUN make -j         > pmix_build.log 
-RUN make install -j > pmix_install.log
+RUN make DESTDIR=/workdir/pmix/build install -j > pmix_install.log
 RUN cp /workdir/pmix/sources/config.log /dist/pmix_config.log
 RUN cp /workdir/pmix/sources/pmix_build.log   /dist/
 RUN cp /workdir/pmix/sources/pmix_install.log /dist/
 # package PMIx:
 WORKDIR /workdir
-RUN fpm -s dir -t deb -v "${PMIX_VERSION}-${UBUNTU_CODENAME}" -n pmix --prefix=/usr -C /workdir/pmix/build .
+RUN fpm -s dir -t deb -v "${PMIX_VERSION}-${UBUNTU_CODENAME}" -n pmix -C /workdir/pmix/build .
 # install PMIx to use it later for slurm:
 RUN dpkg -i  "pmix_${PMIX_VERSION}-${UBUNTU_CODENAME}_amd64.deb"
 
@@ -57,18 +58,18 @@ RUN wget -q -O slurm.tar.bz2 "https://download.schedmd.com/slurm/slurm-${SLURM_V
 # untar and build slurm:
 WORKDIR /workdir/slurm/sources
 RUN tar xjf ../slurm.tar.bz2 --strip-components=1
-RUN ./configure --prefix=/workdir/build                        \ 
+RUN ./configure --prefix=/usr                                  \ 
                 --sysconfdir=/etc/slurm                        \
                 --enable-pam                                   \
                 --with-pam_dir=/lib/x86_64-linux-gnu/security/ \
                 --with-hwloc=/usr                              \ 
                 --with-pmix=/usr                               \ 
                 --with-munge --without-rpath                   \
-		--enable-multiple-slurmd  --without-shared-libslurm
+		--without-shared-libslurm
 RUN ./configure --help >> config.log
 RUN make -j         > slurm_build.log 
 RUN make contrib -j > slurm_contrib.log
-RUN make install -j > slurm_install.log
+RUN make DESTDIR=/workdir/slurm/build install > slurm_install.log
 # copy logs to the dist directory: 
 RUN cp /workdir/slurm/sources/config.log        /dist/slurm_config.log
 RUN cp /workdir/slurm/sources/slurm_build.log   /dist/
@@ -76,6 +77,6 @@ RUN cp /workdir/slurm/sources/slurm_contrib.log /dist/
 RUN cp /workdir/slurm/sources/slurm_install.log /dist/
 # package Slurm:
 WORKDIR /workdir
-RUN fpm -s dir -t deb -v "${SLURM_VERSION}-${UBUNTU_CODENAME}" -n slurm --prefix=/usr -C /workdir/build .
+RUN fpm -s dir -t deb -v "${SLURM_VERSION}-${UBUNTU_CODENAME}" -n slurm -C /workdir/slurm/build .
 # copy the deb packages to /dist/:
 RUN cp *.deb /dist/
